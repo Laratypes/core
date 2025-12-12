@@ -15,14 +15,21 @@ export default class Serve {
   }
 
   public static async bootProvider() {
+    const cleanup = [];
     const instance = this.getInstance()
     const serviceProviderBootstrapped = await register()
     for(let Provider of serviceProviderBootstrapped) {
-      const handler = new Provider(instance).boot()
+      const provider = new Provider(instance);
+      const handler = provider.boot()
       if(handler instanceof Promise) {
         await handler;
       }
+      cleanup.push(provider.down.bind(provider));
     }
+    return cleanup;
   }
 
+  public static down() {
+    this.instance = null;
+  }
 }

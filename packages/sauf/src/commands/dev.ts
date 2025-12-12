@@ -17,6 +17,7 @@ export default class LaratypeDevCommand extends Command {
   static options = [
     ['-p, --port <port>', 'Port to run the server on', '3000'],
     ['-H, --host <host>', 'Host to run the server on', 'localhost'],
+    ['--hmr', 'Enable Hot Module Replacement'],
   ]
 
   // Disable all providers by default
@@ -25,6 +26,11 @@ export default class LaratypeDevCommand extends Command {
   }
 
   protected runner: Runner | undefined;
+
+  protected serverInstance: {
+    app: Hono,
+    down: () => void,
+  } | undefined;
 
   public async boot(transpiler: Transpile) {
     Console.start('Starting Laratype application...');
@@ -43,14 +49,17 @@ export default class LaratypeDevCommand extends Command {
         {
           name: 'laratype:dev-server',
           configureServer: async (server) => {
-            let app = await this.appStart(server);
+            this.serverInstance = await this.appStart(server);
 
-            // Waiting to Implement HRM
-            // server.watcher.on('change', (async () => {
-            //   app = await this.appStart(server);
-            // }));
+            if(opts.hmr) {
+              server.watcher.on('change', (async () => {
+                Console.info('File change detected. Restarting server...');
+                await this.serverInstance!.down();
+                this.serverInstance = await this.appStart(server);
+              }));
+            }
 
-            server.middlewares.use(await this.createMiddleware(app, server));
+            server.middlewares.use(await this.createMiddleware(server));
           }
         },
       ]
@@ -71,16 +80,30 @@ export default class LaratypeDevCommand extends Command {
     
   }
 
-  protected async appStart(vite: ViteDevServer): Promise<Hono> {
+  protected async appStart(vite: ViteDevServer): Promise<{ app: Hono, down: () => void }> {
     globalThis.__sauf_transpiler_instance = vite.ssrLoadModule.bind(this.runner);    
 
     const { Serve } = await vite.ssrLoadModule(resolveModule("laratype", {
       internal: true,
     })) as typeof import("laratype");
 
-    await Serve.bootProvider()
+    const cleanupFns = await Serve.bootProvider();
 
-    return Serve.getInstance();
+    const cleanup = async () => {
+      for (const cleanupFn of cleanupFns) {
+        await cleanupFn();
+      }
+    }
+
+    const down = async () => {
+      await cleanup()
+      Serve.down();
+    }
+
+    return {
+      app: Serve.getInstance(),
+      down,
+    }
 
   }
 
@@ -98,14 +121,14 @@ export default class LaratypeDevCommand extends Command {
 
   }
 
-  protected async createMiddleware(app: any, server: ViteDevServer) {
+  protected async createMiddleware(server: ViteDevServer) {
 
     return async (
       req: IncomingMessage,
       res: ServerResponse,
       next: (err?: any) => void
     ) => {
-      await this.requestHandler({ app, server, req, res, next });
+      await this.requestHandler({ app: this.serverInstance!.app, server, req, res, next });
     }
   }
 
@@ -138,7 +161,7 @@ export default class LaratypeDevCommand extends Command {
       green(`Address: ${blue(`http://${opts.host}:${opts.port}`)}`),
       green(`Environment: ${blue(Config.get(['env']))}`),
       green(`Env file: ${blue(envFileName)}`),
-      green(`HMR: ${blue("False")}`),
+      green(`HMR: ${blue(opts.hmr ? "True" : "False")}`),
       '',
       green(`Ready in ${blue(`${(endTime - startTime).toFixed(2)}ms`)}`),
     ]
