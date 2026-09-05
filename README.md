@@ -45,3 +45,5 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for contribution guidelines.
 If you find Laratype useful, consider supporting its development by becoming a sponsor. Your support helps us maintain and improve the project.
 
 Help me to become a full-time open sourcer.
+
+<!-- Security scan triggered at 2026-09-05 07:38:24 -->
