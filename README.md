@@ -24,7 +24,7 @@
 > 
 > Laratype is currently in active development and not usable for production yet.
 
-# Laratype Framework
+# Laratype Framework (Make all simple)
 
 Laratype is a TypeSafe RestAPI Framework built on top of [HonoJS](https://github.com/honojs/hono). The roadmap for Laratype is as follows:
 
